@@ -1,3 +1,5 @@
+// -*- flycheck-rust-crate-root: "fries.rs"; -*-
+
 use std::default::Default;
 use std::fmt;
 

@@ -8,3 +8,7 @@ authors = [ "Tom Jakubowski <tom@crystae.net>" ]
 
 name = "fries"
 path = "src/fries.rs"
+
+[dependencies.sdl2]
+
+git = "https://github.com/AngryLawyer/rust-sdl2"

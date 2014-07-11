@@ -3,6 +3,12 @@
 
 #[phase(plugin, link)] extern crate log;
 
+extern crate sdl2;
+
+
+use sdl2::render::Renderer;
+use sdl2::video::Window;
+
 use std::default::Default;
 use std::rand::{Rng, StdRng};
 
@@ -164,11 +170,75 @@ impl Vm {
     }
 }
 
-pub fn main() {
-    use std::io::File;
+macro_rules! try {
+    ($e:expr) => {
+        match $e {
+            Ok(inner) => inner,
+            Err(e) => return Err(e)
+        }
+    };
+    ($e:expr, $f:expr) => {
+        match $e.map_err($f) {
+            Ok(inner) => inner,
+            Err(e) => return Err(e)
+        }
+    }
+}
+
+// FIXME: real error type I guess?
+fn window() -> Result<Window, String> {
+    use sdl2::video;
+
+    Window::new("CHIP-8", video::PosCentered, video::PosCentered, 800, 600,
+                video::OpenGL)
+}
+
+fn renderer(win: Window) -> Result<Renderer<Window>, String> {
+    use sdl2::render;
+    Renderer::from_window(win, render::DriverAuto, render::Accelerated)
+}
+
+fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
+    use sdl2::event;
     use std::io::Timer;
 
     static CYCLES_PER_FRAME: u8 = 100;
+
+    sdl2::init(sdl2::InitVideo);
+    let win = try!(window());
+    let renderer = try!(renderer(win));
+    try!(renderer.set_draw_color(sdl2::pixels::RGB(255, 0, 0)));
+    try!(renderer.clear());
+    renderer.present();
+
+    let mut timer = Timer::new().unwrap();
+
+    let sixty_hz = timer.periodic(1000 / 60); // not really 60 Hz...
+
+    'main: loop {
+        'frame: for _ in range(0, CYCLES_PER_FRAME) {
+            vm.tick();
+        }
+        sixty_hz.recv();
+        match event::poll_event() {
+            event::QuitEvent(_) => break 'main,
+            sdl2::event::KeyDownEvent(_, _, key, _, _) => {
+                if key == sdl2::keycode::EscapeKey {
+                    break 'main
+                }
+            },
+            _ => {}
+        };
+        vm.render();
+    }
+
+    sdl2::quit();
+
+    Ok(vm)
+}
+
+pub fn main() {
+    use std::io::File;
 
     let mut rom_file = File::open(&Path::new("smiley.rom"));
     let rom = match Rom::from_reader(&mut rom_file) {
@@ -187,16 +257,9 @@ pub fn main() {
         }
     };
 
-    let mut vm = Vm::new(rom, rng);
-
-    let mut timer = Timer::new().unwrap();
-    let sixty_hz = timer.periodic(1000 / 60); // not really 60 Hz...
-
-    loop {
-        for _ in range(0, CYCLES_PER_FRAME) {
-            vm.tick();
-        }
-        sixty_hz.recv();
-        vm.render();
+    let vm = Vm::new(rom, rng);
+    match run_emulator(vm) {
+        Ok(_) => { println!("Yay!"); },
+        Err(e) => { println!("Error: {}", e); }
     }
 }
