@@ -3,10 +3,7 @@
 
 #[phase(plugin, link)] extern crate log;
 
-#[phase(plugin)] extern crate docopt_macros;
-extern crate docopt;
 extern crate sdl2;
-extern crate serialize;
 
 use sdl2::render::{Renderer, Texture};
 use sdl2::video::Window;
@@ -260,26 +257,27 @@ fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
     Ok(vm)
 }
 
-docopt!{Args, "
-Usage: fries ROM
-"
-}
-
 pub fn main() {
-    use docopt::FlagParser;
     use std::io::stdio;
     use std::io::File;
+    use std::os;
 
     let mut stderr = stdio::stderr();
 
-    let args: Args = FlagParser::parse();
+    let rom_path = match os::args().as_slice() {
+        [] => { return; },
+        [_] => {
+            let _ = writeln!(stderr, "Usage: fries ROM");
+            return;
+        },
+        [_, ref rom, ..] => Path::new(rom.clone())
+    };
 
-    let rom_path = Path::new(args.arg_ROM);
     let mut rom_file = File::open(&rom_path);
     let rom = match Rom::from_reader(&mut rom_file) {
         Ok(r) => r,
         Err(e) => {
-            let _ = write!(stderr, "Error loading ROM: {}", e.desc);
+            let _ = writeln!(stderr, "Error loading ROM: {}", e.desc);
             return;
         }
     };
@@ -287,14 +285,14 @@ pub fn main() {
     let rng = match StdRng::new() {
         Ok(r) => r,
         Err(e) => {
-            let _ = write!(stderr, "Error creating RNG: {}", e.desc);
+            let _ = writeln!(stderr, "Error creating RNG: {}", e.desc);
             return;
         }
     };
 
     let vm = Vm::new(rom, rng);
     match run_emulator(vm) {
-        Err(e) => { let _ = write!(stderr, "Error: {}", e); },
+        Err(e) => { let _ = writeln!(stderr, "Error: {}", e); },
         Ok(_) => {},
     }
 }

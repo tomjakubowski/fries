@@ -2,7 +2,7 @@
 
 name = "fries"
 version = "0.1.0"
-authors = [ "Tom Jakubowski <tom@crystae.net>" ]
+authors = ["Tom Jakubowski <tom@crystae.net>"]
 
 [[bin]]
 
@@ -12,11 +12,3 @@ path = "src/fries.rs"
 [dependencies.sdl2]
 
 git = "https://github.com/AngryLawyer/rust-sdl2"
-
-[dependencies.docopt]
-
-git = "https://github.com/BurntSushi/docopt.rs"
-
-[dependencies.docopt_macros]
-
-git = "https://github.com/BurntSushi/docopt.rs"
