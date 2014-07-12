@@ -171,12 +171,13 @@ impl Vm {
 
     fn render(&mut self, texture: &Texture) -> Result<(), String> {
         use std::mem;
+
         if self.dt > 0 { self.dt -= 1 }
         if self.st > 0 { self.st -= 1 }
         static PIXEL_SIZE: uint = 4; // sizeof u32 / sizeof u8
 
         let vec: Vec<u32> = self.display.pixels().map(|px| {
-            if px.is_on() { 0xffffffffu32 } else { 0 }
+            if px.is_on() { 0xFFCC00FF } else { 0x996600FF }
         }).collect();
         let slice: &[u8] = unsafe { mem::transmute(vec.as_slice()) };
         try!(texture.update(None, slice, (display::COLS * PIXEL_SIZE) as int));
@@ -215,7 +216,7 @@ fn renderer(win: Window) -> Result<Renderer<Window>, String> {
 fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
     use display::{ROWS, COLS};
     use sdl2::event;
-    use sdl2::pixels::RGB888;
+    use sdl2::pixels::RGBA8888;
     use sdl2::render::AccessStreaming;
     use std::io::Timer;
 
@@ -226,7 +227,7 @@ fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
     let renderer = try!(renderer(win));
     try!(renderer.clear());
 
-    let texture = try!(renderer.create_texture(RGB888, AccessStreaming,
+    let texture = try!(renderer.create_texture(RGBA8888, AccessStreaming,
                                                COLS as int,
                                                ROWS as int));
     let mut timer = Timer::new().unwrap();
