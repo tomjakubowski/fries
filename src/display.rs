@@ -1,8 +1,8 @@
 use std::fmt;
 
-static COLS: uint = 64;
-static ROWS: uint = 32;
-pub static MAX_SPRITE_SIZE: uint = 15;
+pub static COLS: uint = 64;
+pub static ROWS: uint = 32;
+pub static MAX_SPRITE_HEIGHT: uint = 15;
 
 pub enum Pixel {
     On,
@@ -32,6 +32,12 @@ impl Pixel {
     }
 }
 
+impl fmt::Show for Pixel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", if self.is_on() { '█' } else { ' ' })
+    }
+}
+
 pub struct Display {
     p: [u64, ..ROWS]
 }
@@ -52,7 +58,7 @@ impl Display {
     }
 
     pub fn draw(&mut self, sprite: &[u8], x: u8, y: u8) {
-        debug_assert!(sprite.len() <= MAX_SPRITE_SIZE);
+        debug_assert!(sprite.len() <= MAX_SPRITE_HEIGHT);
         let (x, mut y) = (x as uint % COLS, y as uint % ROWS);
         for sprite in sprite.iter() {
             let sprite: u64 = (*sprite as u64) << (64 - 8);
@@ -69,10 +75,18 @@ impl Display {
 
 impl fmt::Show for Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for &row in self.p.iter() {
-            try!(write!(f, "{:064t}\n", row));
+        let bar = String::from_char(64, '-');
+        try!(writeln!(f, "+{}+", bar));
+        for (i, px) in self.pixels().enumerate() {
+            if i % 64 == 0 {
+                try!(write!(f, "|"));
+            }
+            try!(write!(f, "{}", px));
+            if i % 64 == 63 {
+                try!(writeln!(f, "|"));
+            }
         }
-        Ok(())
+        writeln!(f, "+{}+", bar)
     }
 }
 
@@ -156,5 +170,18 @@ mod test {
         println!("{}", d);
         assert!(d.pixels().take(8).all(|x| x.is_on()));
         assert!(d.pixels().skip(64 * (ROWS - 1)).take(8).all(|x| x.is_on()));
+    }
+
+    #[test]
+    fn smoke_test_draw() {
+        let mut d = Display::new();
+        let sprite = [0b00100100,
+                      0b00100100,
+                      0b00000000,
+                      0b10000001,
+                      0b01000010,
+                      0b00111100];
+        d.draw(sprite.as_slice(), 0, 0);
+        println!("{}", d);
     }
 }

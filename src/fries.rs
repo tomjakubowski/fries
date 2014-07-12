@@ -5,8 +5,7 @@
 
 extern crate sdl2;
 
-
-use sdl2::render::Renderer;
+use sdl2::render::{Renderer, Texture};
 use sdl2::video::Window;
 
 use std::default::Default;
@@ -20,6 +19,11 @@ mod cpu;
 mod display;
 mod mem;
 
+static SCALE: uint         = 10;
+static WINDOW_WIDTH: uint  = display::COLS * SCALE;
+static WINDOW_HEIGHT: uint = display::ROWS * SCALE;
+
+
 struct Vm {
     mem: Memory,
     reg: Registers,
@@ -28,7 +32,7 @@ struct Vm {
     st: u8, // sound timer
     i: u16, // index register
     ret_stack: Vec<u16>, // return stack
-    _display: Display,
+    display: Display,
     rng: StdRng
 }
 
@@ -44,7 +48,7 @@ impl Vm {
             st: 0,
             i: 0,
             ret_stack: vec![],
-            _display: Display::new(),
+            display: Display::new(),
             rng: rng
         }
     }
@@ -101,8 +105,8 @@ impl Vm {
 
         self.pc += 2;
 
-        if ins == 0x00e0 { // clear screen, TODO
-            println!("FIXME (clear screen)");
+        if ins == 0x00e0 { // clear screen
+            self.display.clear();
             return;
         }
 
@@ -146,8 +150,10 @@ impl Vm {
             0xc => {
                 *self.reg.get_mut(x) = self.rng.gen::<u8>() & nn;
             }
-            0xd => { // draw sprite, TODO
-                println!("FIXME (draw sprite)");
+            0xd => { // draw sprite
+                let sprite = self.mem.slice(self.i, self.i + (n as u16));
+                let (vx, vy) = (self.reg.get(x), self.reg.get(y));
+                self.display.draw(sprite, vx, vy);
             },
             0xe => { // keypresses
                 println!("FIXME (keypresses)");
@@ -164,9 +170,18 @@ impl Vm {
         }
     }
 
-    fn render(&mut self) {
+    fn render(&mut self, texture: &Texture) -> Result<(), String> {
+        use std::mem;
         if self.dt > 0 { self.dt -= 1 }
         if self.st > 0 { self.st -= 1 }
+        static PIXEL_SIZE: uint = 4; // sizeof u32 / sizeof u8
+
+        let vec: Vec<u32> = self.display.pixels().map(|px| {
+            if px.is_on() { 0xffffffffu32 } else { 0 }
+        }).collect();
+        let slice: &[u8] = unsafe { mem::transmute(vec.as_slice()) };
+        try!(texture.update(None, slice, (display::COLS * PIXEL_SIZE) as int));
+        Ok(())
     }
 }
 
@@ -189,8 +204,8 @@ macro_rules! try {
 fn window() -> Result<Window, String> {
     use sdl2::video;
 
-    Window::new("CHIP-8", video::PosCentered, video::PosCentered, 800, 600,
-                video::OpenGL)
+    Window::new("CHIP-8", video::PosCentered, video::PosCentered,
+                WINDOW_WIDTH as int, WINDOW_HEIGHT as int, video::OpenGL)
 }
 
 fn renderer(win: Window) -> Result<Renderer<Window>, String> {
@@ -199,7 +214,10 @@ fn renderer(win: Window) -> Result<Renderer<Window>, String> {
 }
 
 fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
+    use display::{ROWS, COLS};
     use sdl2::event;
+    use sdl2::pixels::RGB888;
+    use sdl2::render::AccessStreaming;
     use std::io::Timer;
 
     static CYCLES_PER_FRAME: u8 = 100;
@@ -207,16 +225,17 @@ fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
     sdl2::init(sdl2::InitVideo);
     let win = try!(window());
     let renderer = try!(renderer(win));
-    try!(renderer.set_draw_color(sdl2::pixels::RGB(255, 0, 0)));
     try!(renderer.clear());
-    renderer.present();
 
+    let texture = try!(renderer.create_texture(RGB888, AccessStreaming,
+                                               COLS as int,
+                                               ROWS as int));
     let mut timer = Timer::new().unwrap();
 
     let sixty_hz = timer.periodic(1000 / 60); // not really 60 Hz...
 
     'main: loop {
-        'frame: for _ in range(0, CYCLES_PER_FRAME) {
+        for _ in range(0, CYCLES_PER_FRAME) {
             vm.tick();
         }
         sixty_hz.recv();
@@ -229,7 +248,9 @@ fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
             },
             _ => {}
         };
-        vm.render();
+        try!(vm.render(&texture));
+        try!(renderer.copy(&texture, None, None));
+        renderer.present();
     }
 
     sdl2::quit();
@@ -238,13 +259,19 @@ fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
 }
 
 pub fn main() {
+    use std::io::stdio;
     use std::io::File;
+    use std::os;
 
-    let mut rom_file = File::open(&Path::new("smiley.rom"));
+    let mut stderr = stdio::stderr();
+
+    let rom_path = Path::new(os::args().get(1).as_slice());
+
+    let mut rom_file = File::open(&rom_path);
     let rom = match Rom::from_reader(&mut rom_file) {
         Ok(r) => r,
         Err(e) => {
-            println!("Error loading ROM: {}", e.desc);
+            let _ = write!(stderr, "Error loading ROM: {}", e.desc);
             return;
         }
     };
@@ -252,14 +279,14 @@ pub fn main() {
     let rng = match StdRng::new() {
         Ok(r) => r,
         Err(e) => {
-            println!("Error creating RNG: {}", e.desc);
+            let _ = write!(stderr, "Error creating RNG: {}", e.desc);
             return;
         }
     };
 
     let vm = Vm::new(rom, rng);
     match run_emulator(vm) {
-        Ok(_) => { println!("Yay!"); },
-        Err(e) => { println!("Error: {}", e); }
+        Err(e) => { let _ = write!(stderr, "Error: {}", e); },
+        Ok(_) => {},
     }
 }

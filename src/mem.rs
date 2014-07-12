@@ -22,6 +22,10 @@ impl Memory {
     pub fn get(&self, i: u16) -> u8 {
         self.mem[i as uint]
     }
+
+    pub fn slice<'a>(&'a self, start: u16, end: u16) -> &'a [u8] {
+        self.mem.slice(start as uint, end as uint)
+    }
 }
 
 impl Default for Memory {
