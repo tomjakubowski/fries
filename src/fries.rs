@@ -5,9 +5,12 @@
 
 extern crate sdl2;
 
+use sdl2::keycode;
+use sdl2::keycode::KeyCode;
 use sdl2::render::{Renderer, Texture};
 use sdl2::video::Window;
 
+use std::collections::HashMap;
 use std::default::Default;
 use std::rand::{Rng, StdRng};
 
@@ -33,7 +36,9 @@ struct Vm {
     ret_stack: Vec<u16>, // return stack
     display: Display,
     rng: StdRng,
-    paused: bool
+    blocked: bool,
+    blocked_reg: u8,
+    keys: u16,
 }
 
 impl Vm {
@@ -50,7 +55,9 @@ impl Vm {
             ret_stack: vec![],
             display: Display::new(),
             rng: rng,
-            paused: false
+            blocked: false,
+            blocked_reg: 255,
+            keys: 0
         }
     }
 
@@ -191,7 +198,7 @@ impl Vm {
             0xa => { // set index register
                 self.i = nnn;
             },
-            0xc => {
+            0xc => { // random number
                 *self.reg.get_mut(x) = self.rng.gen::<u8>() & nn;
             }
             0xd => { // draw sprite
@@ -199,9 +206,10 @@ impl Vm {
                 let (vx, vy) = (self.reg.get(x), self.reg.get(y));
                 self.display.draw(sprite, vx, vy);
             },
-            0xe => { // keypresses
-                println!("FIXME (keypresses)");
-            },
+            0xf if nn == 0x0a => { // wait for keypress
+                self.blocked_reg = x;
+                self.blocked = true;
+            }
             0xf if nn == 0x15 => { // set delay timer from register
                 self.dt = self.reg.get(x);
             },
@@ -227,6 +235,21 @@ impl Vm {
         let slice: &[u8] = unsafe { mem::transmute(vec.as_slice()) };
         try!(texture.update(None, slice, (display::COLS * PIXEL_SIZE) as int));
         Ok(())
+    }
+
+    fn keydown(&mut self, key: uint) {
+        assert!(key < 16);
+        self.keys |= 1 << key;
+    }
+
+    fn keyup(&mut self, key: uint) {
+        assert!(key < 16);
+        self.keys &= !(1 << key);
+        if self.blocked {
+            self.blocked = false;
+            *self.reg.get_mut(self.blocked_reg) = key as u8;
+            self.blocked_reg = 255;
+        }
     }
 }
 
@@ -258,6 +281,27 @@ fn renderer(win: Window) -> Result<Renderer<Window>, String> {
     Renderer::from_window(win, render::DriverAuto, render::Accelerated)
 }
 
+fn keymap() -> HashMap<KeyCode, uint> {
+    let mut map = HashMap::new();
+    map.insert(keycode::XKey,    0x0);
+    map.insert(keycode::Num1Key, 0x1);
+    map.insert(keycode::Num2Key, 0x2);
+    map.insert(keycode::Num3Key, 0x3);
+    map.insert(keycode::QKey,    0x4);
+    map.insert(keycode::WKey,    0x5);
+    map.insert(keycode::EKey,    0x6);
+    map.insert(keycode::AKey,    0x7);
+    map.insert(keycode::SKey,    0x8);
+    map.insert(keycode::DKey,    0x9);
+    map.insert(keycode::ZKey,    0xa);
+    map.insert(keycode::CKey,    0xb);
+    map.insert(keycode::Num4Key, 0xc);
+    map.insert(keycode::RKey,    0xd);
+    map.insert(keycode::FKey,    0xe);
+    map.insert(keycode::VKey,    0xf);
+    map
+}
+
 fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
     use display::{ROWS, COLS};
     use sdl2::event;
@@ -275,32 +319,35 @@ fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
     let texture = try!(renderer.create_texture(RGBA8888, AccessStreaming,
                                                COLS as int,
                                                ROWS as int));
+
+    let keymap = keymap();
+
     let mut timer = Timer::new().unwrap();
     let sixty_hz = timer.periodic(1000 / 60); // not really 60 Hz...
 
     'main: loop {
-        if !vm.paused {
-            for _ in range(0, CYCLES_PER_FRAME) {
-                vm.tick();
+        for _ in range(0, CYCLES_PER_FRAME) {
+            if vm.blocked {
+                break;
             }
+            vm.tick();
         }
-        sixty_hz.recv();
+
         match event::poll_event() {
             event::QuitEvent(_) => break 'main,
             sdl2::event::KeyDownEvent(_, _, key, _, _) => {
-                match key {
-                    sdl2::keycode::EscapeKey => {
-                        break 'main
-                    },
-                    sdl2::keycode::PauseKey => {
-                        vm.paused = !vm.paused;
-                        continue 'main
-                    },
-                    _ => {}
+                if key == sdl2::keycode::EscapeKey {
+                    break 'main;
+                } else {
+                    keymap.find_copy(&key).map(|code| vm.keydown(code));
                 }
+            },
+            sdl2::event::KeyUpEvent(_, _, key, _, _) => {
+                keymap.find_copy(&key).map(|code| vm.keyup(code));
             },
             _ => {}
         };
+        sixty_hz.recv();
         try!(vm.render(&texture));
         try!(renderer.copy(&texture, None, None));
         renderer.present();
