@@ -57,15 +57,29 @@ impl Display {
         }
     }
 
-    pub fn draw(&mut self, sprite: &[u8], x: u8, y: u8) {
-        debug_assert!(sprite.len() <= MAX_SPRITE_HEIGHT);
+    /// Draw the given sprite onto the display at the given
+    /// position. Returns true if drawing the sprite turns off any
+    /// previously on pixels.
+    pub fn draw(&mut self, sprite: &[u8], x: u8, y: u8) -> bool {
+        assert!(sprite.len() <= MAX_SPRITE_HEIGHT);
         let (x, mut y) = (x as uint % COLS, y as uint % ROWS);
+        let mut flag = false;
+
         for sprite in sprite.iter() {
             let sprite: u64 = (*sprite as u64) << (64 - 8);
+            if self.p[y] & (sprite >> x) != 0 {
+                flag = true;
+            }
             self.p[y] ^= sprite >> x;
-            if x != 0 { self.p[y] ^= sprite << (64 - x); }
+            if x != 0 {
+                if self.p[y] & (sprite << (64 - x)) != 0 {
+                    flag = true;
+                }
+                self.p[y] ^= sprite << (64 - x);
+            }
             y = (y + 1) % ROWS;
         }
+        flag
     }
 
     pub fn clear(&mut self) {
@@ -170,6 +184,24 @@ mod test {
         println!("{}", d);
         assert!(d.pixels().take(8).all(|x| x.is_on()));
         assert!(d.pixels().skip(64 * (ROWS - 1)).take(8).all(|x| x.is_on()));
+    }
+
+    #[test]
+    fn test_draw_flag() {
+        let mut d = Display::new();
+        let sprite1 = [0b11110000];
+        assert!(d.draw(sprite1.as_slice(), 0, 0) == false);
+        let sprite2 = [0b00011110];
+        assert!(d.draw(sprite2.as_slice(), 0, 0) == true);
+    }
+
+    #[test]
+    fn test_draw_flag_wrap() {
+        let mut d = Display::new();
+        let sprite1 = [0b10000000];
+        assert!(d.draw(sprite1.as_slice(), 0, 0) == false);
+        let sprite2 = [0b11111111];
+        assert!(d.draw(sprite2.as_slice(), 63, 0) == true);
     }
 
     #[test]

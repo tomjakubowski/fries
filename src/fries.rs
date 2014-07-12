@@ -215,7 +215,8 @@ impl Vm {
             0xd => { // draw sprite
                 let sprite = self.mem.slice(self.i, self.i + (n as u16));
                 let (vx, vy) = (self.reg.get(x), self.reg.get(y));
-                self.display.draw(sprite, vx, vy);
+                let flag = if self.display.draw(sprite, vx, vy) { 0x1 } else { 0x0 };
+                self.reg.set_flag(flag);
             },
             0xe if nn == 0x9e => { // skip if key in VX is pressed
                 if self.is_key_pressed(self.reg.get(x) as uint) {
