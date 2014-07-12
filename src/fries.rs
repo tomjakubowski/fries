@@ -3,7 +3,10 @@
 
 #[phase(plugin, link)] extern crate log;
 
+#[phase(plugin)] extern crate docopt_macros;
+extern crate docopt;
 extern crate sdl2;
+extern crate serialize;
 
 use sdl2::render::{Renderer, Texture};
 use sdl2::video::Window;
@@ -22,7 +25,6 @@ mod mem;
 static SCALE: uint         = 10;
 static WINDOW_WIDTH: uint  = display::COLS * SCALE;
 static WINDOW_HEIGHT: uint = display::ROWS * SCALE;
-
 
 struct Vm {
     mem: Memory,
@@ -258,15 +260,21 @@ fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
     Ok(vm)
 }
 
+docopt!{Args, "
+Usage: fries ROM
+"
+}
+
 pub fn main() {
+    use docopt::FlagParser;
     use std::io::stdio;
     use std::io::File;
-    use std::os;
 
     let mut stderr = stdio::stderr();
 
-    let rom_path = Path::new(os::args().get(1).as_slice());
+    let args: Args = FlagParser::parse();
 
+    let rom_path = Path::new(args.arg_ROM);
     let mut rom_file = File::open(&rom_path);
     let rom = match Rom::from_reader(&mut rom_file) {
         Ok(r) => r,

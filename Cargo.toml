@@ -12,3 +12,11 @@ path = "src/fries.rs"
 [dependencies.sdl2]
 
 git = "https://github.com/AngryLawyer/rust-sdl2"
+
+[dependencies.docopt]
+
+git = "https://github.com/BurntSushi/docopt.rs"
+
+[dependencies.docopt_macros]
+
+git = "https://github.com/BurntSushi/docopt.rs"
