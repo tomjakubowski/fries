@@ -55,17 +55,60 @@ impl Vm {
     }
 
     fn math_op(&mut self, x: u8, y: u8, op: u8) {
+        let vx = self.reg.get(x);
+        let vy = self.reg.get(y);
         match op {
-            0x0 => {
+            0x0 => { // VX = VY
                 let dst = self.reg.get_mut(x);
-                *dst = y;
+                *dst = vy;
             },
-            0x4 => {
-            }
-            0xe => {
-                self.reg.set_flag(y & 0x80);
+            0x1 => { // VX |= VY
                 let dst = self.reg.get_mut(x);
-                *dst = y << 1;
+                *dst |= vy;
+            },
+            0x2 => { // VX &= VY
+                let dst = self.reg.get_mut(x);
+                *dst &= vy;
+            },
+            0x3 => { // VX ^= VY
+                let dst = self.reg.get_mut(x);
+                *dst ^= vy;
+            },
+            0x4 => { // VX += VY, carry -> VF
+                let res: u8 = {
+                    let dst = self.reg.get_mut(x);
+                    *dst += vy;
+                    *dst
+                };
+                self.reg.set_flag((res < vy) as u8);
+            },
+            0x5 => { // VX -= VY, borrow -> VF
+                self.reg.set_flag((vy > vx) as u8);
+                let dst = self.reg.get_mut(x);
+                *dst -= vy;
+            },
+            0x6 => { // VX = VY >> 1, VF = LSB(VY)
+                // The documentation + implementations of the shift
+                // instructions for CHIP-8 are inconsistent and
+                // contradictory to say the least. We follow Octo
+                // here.
+                let res = vy >> 1;
+                self.reg.set_flag(vy & 0x1);
+                *self.reg.get_mut(x) = res;
+            },
+            0x7 => { // VX = VY - VX, borrow -> VF
+                self.reg.set_flag((vx > vy) as u8);
+                let dst = self.reg.get_mut(x);
+                *dst = vy - *dst;
+            },
+            0xe => { // VX = VY << 1, VF = MSB(VY)
+                // The documentation + implementations of the shift
+                // instructions for CHIP-8 are inconsistent and
+                // contradictory to say the least. We follow Octo
+                // here.
+                let res = vy << 1;
+                self.reg.set_flag((vy >> 7) & 0x1);
+                *self.reg.get_mut(x) = res;
             },
             _ => fail!("math op {:01x} unimplemented", op)
         }
@@ -222,7 +265,7 @@ fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
     use sdl2::render::AccessStreaming;
     use std::io::Timer;
 
-    static CYCLES_PER_FRAME: u8 = 100;
+    static CYCLES_PER_FRAME: u16 = 100;
 
     sdl2::init(sdl2::InitVideo);
     let win = try!(window());
@@ -233,7 +276,6 @@ fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
                                                COLS as int,
                                                ROWS as int));
     let mut timer = Timer::new().unwrap();
-
     let sixty_hz = timer.periodic(1000 / 60); // not really 60 Hz...
 
     'main: loop {
