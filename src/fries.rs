@@ -121,16 +121,20 @@ impl Vm {
         }
     }
 
-    fn misc(&mut self, x: u8, nn: u8) -> bool {
+    fn misc(&mut self, x: u8, nn: u8) {
         match nn {
             0x07 => { // set register from delay timer
                 *self.reg.get_mut(x) = self.dt;
             },
+            0x0a => { // wait for keypress
+                self.blocked_reg = x;
+                self.blocked = true;
+            },
             0x15 => {
-                self.dt = self.reg.get(x)
+                self.dt = self.reg.get(x);
             },
             0x18 => {
-                self.st = self.reg.get(x)
+                self.st = self.reg.get(x);
             },
             0x1e => {
                 self.i += self.reg.get(x) as u16;
@@ -141,10 +145,11 @@ impl Vm {
                     *self.reg.get_mut(i) = self.mem.get(start + i as u16)
                 }
                 self.i = self.i + x as u16 + 1;
+            },
+            _ => {
+                fail!("f{:01x}{:02x} not yet implemented", x, nn)
             }
-            _ => return false
         }
-        true
     }
 
     fn tick(&mut self) {
@@ -213,28 +218,17 @@ impl Vm {
                 self.display.draw(sprite, vx, vy);
             },
             0xe if nn == 0x9e => { // skip if key in VX is pressed
-                debug!("checking {:1x} in {:016t}", self.reg.get(x), self.keys);
                 if self.is_key_pressed(self.reg.get(x) as uint) {
                     self.pc += 2;
                 }
             },
             0xe if nn == 0xa1 => { // skip if key in VX is not pressed
-                debug!("checking {:1x} in {:016t}", self.reg.get(x), self.keys);
                 if !self.is_key_pressed(self.reg.get(x) as uint) {
                     self.pc += 2;
                 }
             },
-            0xf if nn == 0x0a => { // wait for keypress
-                self.blocked_reg = x;
-                self.blocked = true;
-            },
-            0xf if nn == 0x15 => { // set delay timer from register
-                self.dt = self.reg.get(x);
-            },
             0xf => {
-                if !self.misc(x, nn) {
-                    fail!("{:04x} not yet implemented", ins)
-                }
+                self.misc(x, nn);
             },
             _ => fail!("{:04x} not yet implemented", ins)
         }
