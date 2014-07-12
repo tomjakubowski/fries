@@ -126,6 +126,12 @@ impl Vm {
             0x07 => { // set register from delay timer
                 *self.reg.get_mut(x) = self.dt;
             },
+            0x15 => {
+                self.dt = self.reg.get(x)
+            },
+            0x18 => {
+                self.st = self.reg.get(x)
+            },
             0x1e => {
                 self.i += self.reg.get(x) as u16;
             },
@@ -206,10 +212,22 @@ impl Vm {
                 let (vx, vy) = (self.reg.get(x), self.reg.get(y));
                 self.display.draw(sprite, vx, vy);
             },
+            0xe if nn == 0x9e => { // skip if key in VX is pressed
+                debug!("checking {:1x} in {:016t}", self.reg.get(x), self.keys);
+                if self.is_key_pressed(self.reg.get(x) as uint) {
+                    self.pc += 2;
+                }
+            },
+            0xe if nn == 0xa1 => { // skip if key in VX is not pressed
+                debug!("checking {:1x} in {:016t}", self.reg.get(x), self.keys);
+                if !self.is_key_pressed(self.reg.get(x) as uint) {
+                    self.pc += 2;
+                }
+            },
             0xf if nn == 0x0a => { // wait for keypress
                 self.blocked_reg = x;
                 self.blocked = true;
-            }
+            },
             0xf if nn == 0x15 => { // set delay timer from register
                 self.dt = self.reg.get(x);
             },
@@ -235,6 +253,11 @@ impl Vm {
         let slice: &[u8] = unsafe { mem::transmute(vec.as_slice()) };
         try!(texture.update(None, slice, (display::COLS * PIXEL_SIZE) as int));
         Ok(())
+    }
+
+    fn is_key_pressed(&self, key: uint) -> bool {
+        assert!(key < 16);
+        (self.keys & 1 << key) >> key == 1
     }
 
     fn keydown(&mut self, key: uint) {
