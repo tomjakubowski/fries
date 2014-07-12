@@ -32,7 +32,8 @@ struct Vm {
     i: u16, // index register
     ret_stack: Vec<u16>, // return stack
     display: Display,
-    rng: StdRng
+    rng: StdRng,
+    paused: bool
 }
 
 impl Vm {
@@ -48,7 +49,8 @@ impl Vm {
             i: 0,
             ret_stack: vec![],
             display: Display::new(),
-            rng: rng
+            rng: rng,
+            paused: false
         }
     }
 
@@ -235,15 +237,24 @@ fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
     let sixty_hz = timer.periodic(1000 / 60); // not really 60 Hz...
 
     'main: loop {
-        for _ in range(0, CYCLES_PER_FRAME) {
-            vm.tick();
+        if !vm.paused {
+            for _ in range(0, CYCLES_PER_FRAME) {
+                vm.tick();
+            }
         }
         sixty_hz.recv();
         match event::poll_event() {
             event::QuitEvent(_) => break 'main,
             sdl2::event::KeyDownEvent(_, _, key, _, _) => {
-                if key == sdl2::keycode::EscapeKey {
-                    break 'main
+                match key {
+                    sdl2::keycode::EscapeKey => {
+                        break 'main
+                    },
+                    sdl2::keycode::PauseKey => {
+                        vm.paused = !vm.paused;
+                        continue 'main
+                    },
+                    _ => {}
                 }
             },
             _ => {}
