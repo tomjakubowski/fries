@@ -4,6 +4,9 @@ use std::io::IoResult;
 pub static MEMORY_SIZE: u16 = 4096;
 pub static ROM_LOC: u16 = 0x200;
 pub static ROM_SIZE: u16 = MEMORY_SIZE - ROM_LOC;
+pub static FONT_SPRITE_SIZE: uint = 5;
+pub static FONT_SPRITES: uint = 16;
+static FONT_LOC: uint = 0;
 
 pub struct Memory {
     mem: [u8, ..MEMORY_SIZE]
@@ -19,6 +22,12 @@ impl Memory {
         dst.copy_from(rom.prgm.as_slice());
     }
 
+    pub fn load_font(&mut self, sprites: &[u8]) {
+        assert!(sprites.len() == FONT_SPRITE_SIZE * FONT_SPRITES);
+        let dst = self.mem.mut_slice(FONT_LOC, FONT_SPRITE_SIZE * FONT_SPRITES);
+        dst.copy_from(sprites);
+    }
+
     pub fn get(&self, i: u16) -> u8 {
         self.mem[i as uint]
     }
@@ -29,6 +38,11 @@ impl Memory {
 
     pub fn mut_slice<'a>(&'a mut self, start: u16, end: u16) -> &'a mut [u8] {
         self.mem.mut_slice(start as uint, end as uint)
+    }
+
+    pub fn font_offset(&self, n: u8) -> u16 {
+        let n: uint = (n & 0xf) as uint;
+        (FONT_LOC + n * FONT_SPRITE_SIZE) as u16
     }
 }
 
