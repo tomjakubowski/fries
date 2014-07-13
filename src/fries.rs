@@ -137,7 +137,13 @@ impl Vm {
                 self.st = self.reg.get(x);
             },
             // 0x29 -> set I to address w/ number sprite
-            // 0x33 -> store BCD
+            0x33 => {
+                let val = self.reg.get(x);
+                let dst: &mut [u8] = self.mem.mut_slice(self.i, self.i + 3);
+                dst[0] = (val / 100) % 10;
+                dst[1] = (val / 10) % 10;
+                dst[2] = val % 10;
+            },
             0x1e => {
                 self.i += self.reg.get(x) as u16;
             },
