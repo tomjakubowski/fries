@@ -3,14 +3,13 @@
 
 #[phase(plugin, link)] extern crate log;
 
-extern crate sdl2;
+extern crate rsfml;
 
-use sdl2::keycode;
-use sdl2::keycode::KeyCode;
-use sdl2::render::{Renderer, Texture};
-use sdl2::video::Window;
+use rsfml::graphics::{RenderWindow, Texture};
+use rsfml::window::keyboard;
+use rsfml::window::keyboard::Key;
 
-use std::collections::HashMap;
+use std::collections::TreeMap;
 use std::default::Default;
 use std::rand::{Rng, StdRng};
 
@@ -286,18 +285,21 @@ impl Vm {
         }
     }
 
-    fn render(&mut self, texture: &Texture) -> Result<(), String> {
-        use std::mem;
-
+    fn render(&mut self, texture: &mut Texture) -> Result<(), String> {
         if self.dt > 0 { self.dt -= 1 }
         if self.st > 0 { self.st -= 1 }
-        static PIXEL_SIZE: uint = 4; // sizeof u32 / sizeof u8
 
-        let vec: Vec<u32> = self.display.pixels().map(|px| {
-            if px.is_on() { 0xFFCC00FF } else { 0x996600FF }
-        }).collect();
-        let slice: &[u8] = unsafe { mem::transmute(vec.as_slice()) };
-        try!(texture.update(None, slice, (display::COLS * PIXEL_SIZE) as int));
+        let on: [u8, ..4]  = [0xff, 0xcc, 0x00, 0xff];
+        let off: [u8, ..4] = [0x99, 0x66, 0x00, 0xff];
+
+        let vec: Vec<u8> = self.display.pixels().flat_map(|px| {
+            if px.is_on() {
+                on.as_slice().iter()
+            } else {
+                off.as_slice().iter()
+            }
+        }).map(|&x| x).collect();
+        texture.update_from_pixels(vec, display::COLS, display::ROWS, 0, 0);
         Ok(())
     }
 
@@ -322,79 +324,64 @@ impl Vm {
     }
 }
 
-macro_rules! try {
-    ($e:expr) => {
-        match $e {
-            Ok(inner) => inner,
-            Err(e) => return Err(e)
-        }
-    };
-    ($e:expr, $f:expr) => {
-        match $e.map_err($f) {
-            Ok(inner) => inner,
-            Err(e) => return Err(e)
-        }
+// FIXME: real error type I guess?
+fn window() -> Result<RenderWindow, String> {
+    use rsfml::graphics::RenderWindow;
+    use rsfml::window::{Close, ContextSettings, VideoMode};
+    let settings = ContextSettings::default();
+    match RenderWindow::new(VideoMode::new_init(WINDOW_WIDTH, WINDOW_HEIGHT, 32),
+                            "CHIP-8",
+                            Close,
+                            &settings) {
+        Some(window) => Ok(window),
+        None => Err("Could not create RenderWindow.".to_string())
     }
 }
 
-// FIXME: real error type I guess?
-fn window() -> Result<Window, String> {
-    use sdl2::video;
-
-    Window::new("CHIP-8", video::PosCentered, video::PosCentered,
-                WINDOW_WIDTH as int, WINDOW_HEIGHT as int, video::OpenGL)
+fn texture() -> Result<Texture, String> {
+    match Texture::new(display::COLS as uint, display::ROWS as uint) {
+        Some(texture) => Ok(texture),
+        None => Err("Could not create texture.".to_string())
+    }
 }
 
-fn renderer(win: Window) -> Result<Renderer<Window>, String> {
-    use sdl2::render;
-    Renderer::from_window(win, render::DriverAuto, render::Accelerated)
-}
-
-fn keymap() -> HashMap<KeyCode, uint> {
-    let mut map = HashMap::new();
-    map.insert(keycode::XKey,    0x0);
-    map.insert(keycode::Num1Key, 0x1);
-    map.insert(keycode::Num2Key, 0x2);
-    map.insert(keycode::Num3Key, 0x3);
-    map.insert(keycode::QKey,    0x4);
-    map.insert(keycode::WKey,    0x5);
-    map.insert(keycode::EKey,    0x6);
-    map.insert(keycode::AKey,    0x7);
-    map.insert(keycode::SKey,    0x8);
-    map.insert(keycode::DKey,    0x9);
-    map.insert(keycode::ZKey,    0xa);
-    map.insert(keycode::CKey,    0xb);
-    map.insert(keycode::Num4Key, 0xc);
-    map.insert(keycode::RKey,    0xd);
-    map.insert(keycode::FKey,    0xe);
-    map.insert(keycode::VKey,    0xf);
+fn keymap() -> TreeMap<Key, uint> {
+    let mut map = TreeMap::new();
+    map.insert(keyboard::X,    0x0);
+    map.insert(keyboard::Num1, 0x1);
+    map.insert(keyboard::Num2, 0x2);
+    map.insert(keyboard::Num3, 0x3);
+    map.insert(keyboard::Q,    0x4);
+    map.insert(keyboard::W,    0x5);
+    map.insert(keyboard::E,    0x6);
+    map.insert(keyboard::A,    0x7);
+    map.insert(keyboard::S,    0x8);
+    map.insert(keyboard::D,    0x9);
+    map.insert(keyboard::Z,    0xa);
+    map.insert(keyboard::C,    0xb);
+    map.insert(keyboard::Num4, 0xc);
+    map.insert(keyboard::R,    0xd);
+    map.insert(keyboard::F,    0xe);
+    map.insert(keyboard::V,    0xf);
     map
 }
 
 fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
-    use display::{ROWS, COLS};
-    use sdl2::event;
-    use sdl2::pixels::RGBA8888;
-    use sdl2::render::AccessStreaming;
     use std::io::Timer;
+    use rsfml::graphics::Sprite;
 
     static CYCLES_PER_FRAME: u16 = 100;
 
-    sdl2::init(sdl2::InitVideo);
-    let win = try!(window());
-    let renderer = try!(renderer(win));
-    try!(renderer.clear());
-
-    let texture = try!(renderer.create_texture(RGBA8888, AccessStreaming,
-                                               COLS as int,
-                                               ROWS as int));
-
+    let mut win = try!(window());
+    let mut texture = try!(texture());
     let keymap = keymap();
 
     let mut timer = Timer::new().unwrap();
     let sixty_hz = timer.periodic(1000 / 60); // not really 60 Hz...
 
     'main: loop {
+        use rsfml::window::{event, keyboard};
+
         for _ in range(0, CYCLES_PER_FRAME) {
             if vm.blocked {
                 break;
@@ -402,27 +389,27 @@ fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
             vm.tick();
         }
 
-        match event::poll_event() {
-            event::QuitEvent(_) => break 'main,
-            sdl2::event::KeyDownEvent(_, _, key, _, _) => {
-                if key == sdl2::keycode::EscapeKey {
+        match win.poll_event() {
+            event::Closed => break 'main,
+            event::KeyPressed { code: key, .. } => {
+                if key == keyboard::Escape {
                     break 'main;
                 } else {
-                    keymap.find_copy(&key).map(|code| vm.keydown(code));
+                    keymap.find(&key).map(|&code| vm.keydown(code));
                 }
             },
-            sdl2::event::KeyUpEvent(_, _, key, _, _) => {
-                keymap.find_copy(&key).map(|code| vm.keyup(code));
+            event::KeyReleased { code: key, .. }=> {
+                keymap.find(&key).map(|&code| vm.keyup(code));
             },
             _ => {}
         };
         sixty_hz.recv();
-        try!(vm.render(&texture));
-        try!(renderer.copy(&texture, None, None));
-        renderer.present();
+        try!(vm.render(&mut texture));
+        let mut sprite = Sprite::new_with_texture(&texture).unwrap(); // FIXME
+        sprite.scale2f(10., 10.);
+        win.draw(&sprite);
+        win.display();
     }
-
-    sdl2::quit();
 
     Ok(vm)
 }

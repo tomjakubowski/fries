@@ -9,6 +9,6 @@ authors = ["Tom Jakubowski <tom@crystae.net>"]
 name = "fries"
 path = "src/fries.rs"
 
-[dependencies.sdl2]
+[dependencies.rust-sfml]
 
-git = "https://github.com/AngryLawyer/rust-sdl2"
+git = "https://github.com/JeremyLetang/rust-sfml"
