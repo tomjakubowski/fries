@@ -136,6 +136,8 @@ impl Vm {
             0x18 => {
                 self.st = self.reg.get(x);
             },
+            // 0x29 -> set I to address w/ number sprite
+            // 0x33 -> store BCD
             0x1e => {
                 self.i += self.reg.get(x) as u16;
             },
@@ -154,7 +156,7 @@ impl Vm {
                 self.i = new_i;
             },
             _ => {
-                fail!("f{:01x}{:02x} not yet implemented", x, nn)
+                fail!("f{:01x}{:02x} not implemented", x, nn)
             }
         }
     }
@@ -193,13 +195,18 @@ impl Vm {
                 self.ret_stack.push(self.pc);
                 self.pc = nnn;
             },
-            0x3 => { // skip if eq
+            0x3 => { // skip if VX eq NN
                 if self.reg.get(x) == nn {
                     self.pc += 2;
                 }
             },
-            0x4 => { // skip if ne
+            0x4 => { // skip if VX ne NN
                 if self.reg.get(x) != nn {
+                    self.pc += 2;
+                }
+            },
+            0x5 => { // skip if VX == VY
+                if self.reg.get(x) == self.reg.get(y) {
                     self.pc += 2;
                 }
             },
@@ -213,8 +220,16 @@ impl Vm {
             0x8 => { // math
                 self.math_op(x, y, n);
             },
+            0x9 => { // skip if VX != VY
+                if self.reg.get(x) != self.reg.get(y) {
+                    self.pc += 2
+                }
+            },
             0xa => { // set index register
                 self.i = nnn;
+            },
+            0xb => { // jump to nnn + v0
+                self.pc = nnn + self.reg.get(0) as u16;
             },
             0xc => { // random number
                 *self.reg.get_mut(x) = self.rng.gen::<u8>() & nn;
