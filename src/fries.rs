@@ -139,12 +139,19 @@ impl Vm {
             0x1e => {
                 self.i += self.reg.get(x) as u16;
             },
-            0x65 => {
-                let start = self.i;
-                for i in range(0, x + 1) {
-                    *self.reg.get_mut(i) = self.mem.get(start + i as u16)
-                }
-                self.i = self.i + x as u16 + 1;
+            0x55 => { // store registers to memory
+                let new_i = self.i + x as u16 + 1;
+                let dst: &mut [u8] = self.mem.mut_slice(self.i, new_i);
+                let src: &[u8] = self.reg.slice(0, x + 1);
+                dst.copy_from(src);
+                self.i = new_i;
+            },
+            0x65 => { // load registers from memory
+                let new_i = self.i + x as u16 + 1;
+                let dst: &mut [u8] = self.reg.mut_slice(0, x + 1);
+                let src: &[u8] = self.mem.slice(self.i, new_i);
+                dst.copy_from(src);
+                self.i = new_i;
             },
             _ => {
                 fail!("f{:01x}{:02x} not yet implemented", x, nn)

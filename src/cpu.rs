@@ -46,6 +46,14 @@ impl Registers {
         unsafe { self.regs.as_mut_slice().unsafe_mut_ref(i as uint) }
     }
 
+    pub fn slice<'a>(&'a self, start: u8, end: u8) -> &'a [u8] {
+        self.regs.slice(start as uint, end as uint)
+    }
+
+    pub fn mut_slice<'a>(&'a mut self, start: u8, end: u8) -> &'a mut [u8] {
+        self.regs.mut_slice(start as uint, end as uint)
+    }
+
     pub fn set_flag(&mut self, val: u8) {
         self.regs[VF as uint] = val;
     }

@@ -26,6 +26,10 @@ impl Memory {
     pub fn slice<'a>(&'a self, start: u16, end: u16) -> &'a [u8] {
         self.mem.slice(start as uint, end as uint)
     }
+
+    pub fn mut_slice<'a>(&'a mut self, start: u16, end: u16) -> &'a mut [u8] {
+        self.mem.mut_slice(start as uint, end as uint)
+    }
 }
 
 impl Default for Memory {
