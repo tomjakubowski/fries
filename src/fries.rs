@@ -294,9 +294,9 @@ impl Vm {
 
         let vec: Vec<u8> = self.display.pixels().flat_map(|px| {
             if px.is_on() {
-                on.as_slice().iter()
+                on.iter()
             } else {
-                off.as_slice().iter()
+                off.iter()
             }
         }).map(|&x| x).collect();
         texture.update_from_pixels(vec, display::COLS, display::ROWS, 0, 0);
