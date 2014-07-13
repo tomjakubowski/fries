@@ -285,7 +285,7 @@ impl Vm {
         }
     }
 
-    fn render(&mut self, texture: &mut Texture) -> Result<(), String> {
+    fn render(&mut self, texture: &mut Texture) {
         if self.dt > 0 { self.dt -= 1 }
         if self.st > 0 { self.st -= 1 }
 
@@ -293,14 +293,9 @@ impl Vm {
         let off: [u8, ..4] = [0x99, 0x66, 0x00, 0xff];
 
         let vec: Vec<u8> = self.display.pixels().flat_map(|px| {
-            if px.is_on() {
-                on.iter()
-            } else {
-                off.iter()
-            }
+            if px.is_on() { on.iter() } else { off.iter() }
         }).map(|&x| x).collect();
         texture.update_from_pixels(vec, display::COLS, display::ROWS, 0, 0);
-        Ok(())
     }
 
     fn is_key_pressed(&self, key: uint) -> bool {
@@ -404,7 +399,7 @@ fn run_emulator(mut vm: Vm) -> Result<Vm, String> {
             _ => {}
         };
         sixty_hz.recv();
-        try!(vm.render(&mut texture));
+        vm.render(&mut texture);
         let mut sprite = Sprite::new_with_texture(&texture).unwrap(); // FIXME
         sprite.scale2f(10., 10.);
         win.draw(&sprite);
