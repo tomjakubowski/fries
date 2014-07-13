@@ -23,6 +23,7 @@ impl Pixel {
         }
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn is_off(&self) -> bool {
         match *self {
