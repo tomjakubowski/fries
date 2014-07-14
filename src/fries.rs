@@ -295,7 +295,7 @@ impl Vm {
         let vec: Vec<u8> = self.display.pixels().flat_map(|px| {
             if px.is_on() { on.iter() } else { off.iter() }
         }).map(|&x| x).collect();
-        texture.update_from_pixels(vec, display::COLS, display::ROWS, 0, 0);
+        texture.update_from_pixels(vec.as_slice(), display::COLS, display::ROWS, 0, 0);
     }
 
     fn is_key_pressed(&self, key: uint) -> bool {

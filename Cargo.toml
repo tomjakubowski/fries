@@ -11,4 +11,5 @@ path = "src/fries.rs"
 
 [dependencies.rust-sfml]
 
-git = "https://github.com/JeremyLetang/rust-sfml"
+git = "https://github.com/tomjakubowski/rust-sfml"
+branch = "update-pixels-slice"
