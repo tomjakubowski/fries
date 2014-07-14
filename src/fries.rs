@@ -289,8 +289,8 @@ impl Vm {
         if self.dt > 0 { self.dt -= 1 }
         if self.st > 0 { self.st -= 1 }
 
-        let on: [u8, ..4]  = [0xff, 0xcc, 0x00, 0xff];
-        let off: [u8, ..4] = [0x99, 0x66, 0x00, 0xff];
+        let on: [u8, ..4]  = [0x6c, 0x71, 0xc4, 0xff];
+        let off: [u8, ..4] = [0x00, 0x2b, 0x36, 0xff];
 
         let vec: Vec<u8> = self.display.pixels().flat_map(|px| {
             if px.is_on() { on.iter() } else { off.iter() }
